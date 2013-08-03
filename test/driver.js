@@ -14,7 +14,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* globals PDFJS, getPdf, combineUrl, StatTimer, SpecialPowers */
+/* globals PDFJS, getPdf, combineUrl, StatTimer, SpecialPowers, Promise */
 
 'use strict';
 
@@ -133,11 +133,13 @@ function nextTask() {
     nextPage(task, failure);
   }
 
-  // When generating reference images in masterMode, disable range requests
-  PDFJS.disableRange = task.disableRange || masterMode;
-  PDFJS.disableAutoFetch = !task.enableAutoFetch || masterMode;
+  PDFJS.disableRange = task.disableRange;
+  PDFJS.disableAutoFetch = !task.enableAutoFetch;
   try {
-    var promise = PDFJS.getDocument(absoluteUrl);
+    var promise = PDFJS.getDocument({
+      url: absoluteUrl,
+      password: task.password
+    });
     promise.then(function(doc) {
       task.pdfDoc = doc;
       continuation();
@@ -194,15 +196,18 @@ SimpleTextLayerBuilder.prototype = {
   appendText: function SimpleTextLayerBuilder_AppendText(geom) {
     var ctx = this.ctx, viewport = this.viewport;
     // vScale and hScale already contain the scaling to pixel units
-    var fontHeight = geom.fontSize * geom.vScale;
+    var fontHeight = geom.fontSize * Math.abs(geom.vScale);
+    ctx.save();
     ctx.beginPath();
     ctx.strokeStyle = 'red';
     ctx.fillStyle = 'yellow';
-    ctx.rect(geom.x, geom.y - fontHeight,
-             geom.canvasWidth * geom.hScale, fontHeight);
+    ctx.translate(geom.x + (fontHeight * Math.sin(geom.angle)),
+                  geom.y - (fontHeight * Math.cos(geom.angle)));
+    ctx.rotate(geom.angle);
+    ctx.rect(0, 0, geom.canvasWidth * Math.abs(geom.hScale), fontHeight);
     ctx.stroke();
     ctx.fill();
-
+    ctx.restore();
     var textContent = this.textContent.bidiTexts[this.textCounter].str;
     ctx.font = fontHeight + 'px ' + geom.fontFamily;
     ctx.fillStyle = 'black';
@@ -264,6 +269,7 @@ function nextPage(task, loadError) {
         clear(ctx);
 
         var drawContext, textLayerBuilder;
+        var initPromise = new Promise();
         if (task.type == 'text') {
           // using dummy canvas for pdf context drawing operations
           if (!dummyCanvas) {
@@ -275,10 +281,12 @@ function nextPage(task, loadError) {
 
           page.getTextContent().then(function(textContent) {
             textLayerBuilder.setTextContent(textContent);
+            initPromise.resolve();
           });
         } else {
           drawContext = ctx;
           textLayerBuilder = new NullTextLayerBuilder();
+          initPromise.resolve();
         }
         var renderContext = {
           canvasContext: drawContext,
@@ -291,11 +299,13 @@ function nextPage(task, loadError) {
           page.stats = new StatTimer();
           snapshotCurrentPage(task, error);
         });
-        page.render(renderContext).then(function() {
-          completeRender(false);
-        },
-        function(error) {
-          completeRender('render : ' + error);
+        initPromise.then(function () {
+          page.render(renderContext).then(function() {
+            completeRender(false);
+          },
+          function(error) {
+            completeRender('render : ' + error);
+          });
         });
       },
       function(error) {
@@ -401,6 +411,7 @@ function info(message) {
 }
 
 function clear(ctx) {
+  ctx.beginPath();
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 }
 

@@ -187,6 +187,28 @@ var RefSet = (function RefSetClosure() {
   return RefSet;
 })();
 
+var RefSetCache = (function RefSetCacheClosure() {
+  function RefSetCache() {
+    this.dict = {};
+  }
+
+  RefSetCache.prototype = {
+    get: function RefSetCache_get(ref) {
+      return this.dict['R' + ref.num + '.' + ref.gen];
+    },
+
+    has: function RefSetCache_has(ref) {
+      return ('R' + ref.num + '.' + ref.gen) in this.dict;
+    },
+
+    put: function RefSetCache_put(ref, obj) {
+      this.dict['R' + ref.num + '.' + ref.gen] = obj;
+    }
+  };
+
+  return RefSetCache;
+})();
+
 var Catalog = (function CatalogClosure() {
   function Catalog(pdfManager, xref) {
     this.pdfManager = pdfManager;
@@ -244,6 +266,18 @@ var Catalog = (function CatalogClosure() {
       return shadow(this, 'toplevelPagesDict', pagesObj);
     },
     get documentOutline() {
+      var obj = null;
+      try {
+        obj = this.readDocumentOutline();
+      } catch (ex) {
+        if (ex instanceof MissingDataException) {
+          throw ex;
+        }
+        warn('Unable to read document outline');
+      }
+      return shadow(this, 'documentOutline', obj);
+    },
+    readDocumentOutline: function Catalog_readDocumentOutline() {
       var xref = this.xref;
       var obj = this.catDict.get('Outlines');
       var root = { items: [] };
@@ -294,8 +328,7 @@ var Catalog = (function CatalogClosure() {
           }
         }
       }
-      obj = root.items.length > 0 ? root.items : null;
-      return shadow(this, 'documentOutline', obj);
+      return root.items.length > 0 ? root.items : null;
     },
     get numPages() {
       var obj = this.toplevelPagesDict.get('Count');
@@ -574,6 +607,12 @@ var XRef = (function XRefClosure() {
         tableState.parserBuf2 = parser.buf2;
         delete tableState.firstEntryNum;
         delete tableState.entryCount;
+      }
+
+      // Per issue 3248: hp scanners generate bad XRef
+      if (first === 1 && this.entries[1] && this.entries[1].free) {
+        // shifting the entries
+        this.entries.shift();
       }
 
       // Sanity check: as per spec, first object must be free
@@ -921,14 +960,7 @@ var XRef = (function XRefClosure() {
         } else {
           e = parser.getObj();
         }
-        if (!isStream(e) || e instanceof JpegStream) {
-          this.cache[num] = e;
-        } else if (e instanceof Stream) {
-          e = e.makeSubStream(e.start, e.length, e.dict);
-          this.cache[num] = e;
-        } else if ('readBlock' in e) {
-          e.getBytes();
-          e = e.makeSubStream(0, e.bufferLength, e.dict);
+        if (!isStream(e)) {
           this.cache[num] = e;
         }
         return e;
@@ -969,7 +1001,7 @@ var XRef = (function XRefClosure() {
         }
       }
       e = entries[e.gen];
-      if (!e) {
+      if (e === undefined) {
         error('bad XRef entry for compressed object');
       }
       return e;
@@ -1072,13 +1104,20 @@ var PDFObjects = (function PDFObjectsClosure() {
   PDFObjects.prototype = {
     /**
      * Internal function.
-     * Ensures there is an object defined for `objId`. Stores `data` on the
-     * object *if* it is created.
+     * Ensures there is an object defined for `objId`.
      */
-    ensureObj: function PDFObjects_ensureObj(objId, data) {
+    ensureObj: function PDFObjects_ensureObj(objId) {
       if (this.objs[objId])
         return this.objs[objId];
-      return this.objs[objId] = new Promise(objId, data);
+
+      var obj = {
+        promise: new Promise(objId),
+        data: null,
+        resolved: false
+      };
+      this.objs[objId] = obj;
+
+      return obj;
     },
 
     /**
@@ -1094,7 +1133,7 @@ var PDFObjects = (function PDFObjectsClosure() {
       // If there is a callback, then the get can be async and the object is
       // not required to be resolved right now
       if (callback) {
-        this.ensureObj(objId).then(callback);
+        this.ensureObj(objId).promise.then(callback);
         return null;
       }
 
@@ -1104,7 +1143,7 @@ var PDFObjects = (function PDFObjectsClosure() {
 
       // If there isn't an object yet or the object isn't resolved, then the
       // data isn't ready yet!
-      if (!obj || !obj.isResolved)
+      if (!obj || !obj.resolved)
         error('Requesting object that isn\'t resolved yet ' + objId);
 
       return obj.data;
@@ -1114,36 +1153,25 @@ var PDFObjects = (function PDFObjectsClosure() {
      * Resolves the object `objId` with optional `data`.
      */
     resolve: function PDFObjects_resolve(objId, data) {
-      var objs = this.objs;
+      var obj = this.ensureObj(objId);
 
-      // In case there is a promise already on this object, just resolve it.
-      if (objs[objId]) {
-        objs[objId].resolve(data);
-      } else {
-        this.ensureObj(objId, data);
-      }
-    },
-
-    onData: function PDFObjects_onData(objId, callback) {
-      this.ensureObj(objId).onData(callback);
+      obj.resolved = true;
+      obj.data = data;
+      obj.promise.resolve(data);
     },
 
     isResolved: function PDFObjects_isResolved(objId) {
       var objs = this.objs;
+
       if (!objs[objId]) {
         return false;
       } else {
-        return objs[objId].isResolved;
+        return objs[objId].resolved;
       }
     },
 
     hasData: function PDFObjects_hasData(objId) {
-      var objs = this.objs;
-      if (!objs[objId]) {
-        return false;
-      } else {
-        return objs[objId].hasData;
-      }
+      return this.isResolved(objId);
     },
 
     /**
@@ -1151,20 +1179,11 @@ var PDFObjects = (function PDFObjectsClosure() {
      */
     getData: function PDFObjects_getData(objId) {
       var objs = this.objs;
-      if (!objs[objId] || !objs[objId].hasData) {
+      if (!objs[objId] || !objs[objId].resolved) {
         return null;
       } else {
         return objs[objId].data;
       }
-    },
-
-    /**
-     * Sets the data of an object but *doesn't* resolve it.
-     */
-    setData: function PDFObjects_setData(objId, data) {
-      // Watchout! If you call `this.ensureObj(objId, data)` you're going to
-      // create a *resolved* promise which shouldn't be the case!
-      this.ensureObj(objId).data = data;
     },
 
     clear: function PDFObjects_clear() {
@@ -1270,13 +1289,22 @@ var ObjectLoader = (function() {
             pendingRequests.push({ begin: e.begin, end: e.end });
           }
         }
-        if (currentNode instanceof ChunkedStream &&
-            currentNode.getMissingChunks().length) {
-          nodesToRevisit.push(currentNode);
-          pendingRequests.push({
-            begin: currentNode.start,
-            end: currentNode.end
-          });
+        if (currentNode && currentNode.getBaseStreams) {
+          var baseStreams = currentNode.getBaseStreams();
+          var foundMissingData = false;
+          for (var i = 0; i < baseStreams.length; i++) {
+            var stream = baseStreams[i];
+            if (stream.getMissingChunks && stream.getMissingChunks().length) {
+              foundMissingData = true;
+              pendingRequests.push({
+                begin: stream.start,
+                end: stream.end
+              });
+            }
+          }
+          if (foundMissingData) {
+            nodesToRevisit.push(currentNode);
+          }
         }
 
         addChildren(currentNode, nodesToVisit);

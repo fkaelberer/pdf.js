@@ -46,6 +46,10 @@ var ChunkedStream = (function ChunkedStreamClosure() {
       return chunks;
     },
 
+    getBaseStreams: function ChunkedStream_getBaseStreams() {
+      return [this];
+    },
+
     allChunksLoaded: function ChunkedStream_allChunksLoaded() {
       return this.numChunksLoaded === this.numChunks;
     },
@@ -114,7 +118,7 @@ var ChunkedStream = (function ChunkedStreamClosure() {
     getByte: function ChunkedStream_getByte() {
       var pos = this.pos;
       if (pos >= this.end) {
-        return null;
+        return -1;
       }
       this.ensureRange(pos, pos + 1);
       return this.bytes[this.pos++];
@@ -141,25 +145,15 @@ var ChunkedStream = (function ChunkedStreamClosure() {
       return bytes.subarray(pos, end);
     },
 
+    peekBytes: function ChunkedStream_peekBytes(length) {
+      var bytes = this.getBytes(length);
+      this.pos -= bytes.length;
+      return bytes;
+    },
+
     getByteRange: function ChunkedStream_getBytes(begin, end) {
       this.ensureRange(begin, end);
       return this.bytes.subarray(begin, end);
-    },
-
-    lookChar: function ChunkedStream_lookChar() {
-      var pos = this.pos;
-      if (pos >= this.end)
-        return null;
-      this.ensureRange(pos, pos + 1);
-      return String.fromCharCode(this.bytes[pos]);
-    },
-
-    getChar: function ChunkedStream_getChar() {
-      var pos = this.pos;
-      if (pos >= this.end)
-        return null;
-      this.ensureRange(pos, pos + 1);
-      return String.fromCharCode(this.bytes[this.pos++]);
     },
 
     skip: function ChunkedStream_skip(n) {

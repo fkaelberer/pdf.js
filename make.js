@@ -70,8 +70,7 @@ target.all = function() {
 
 // Files that need to be included in every build.
 var COMMON_WEB_FILES =
-      ['web/viewer.css',
-       'web/images',
+      ['web/images',
        'web/debugger.js'],
     COMMON_WEB_FILES_PREPROCESS =
       ['web/viewer.js',
@@ -102,6 +101,7 @@ target.generic = function() {
     copy: [
       [COMMON_WEB_FILES, GENERIC_DIR + '/web'],
       ['external/webL10n/l10n.js', GENERIC_DIR + '/web'],
+      ['web/viewer.css', GENERIC_DIR + '/web'],
       ['web/compatibility.js', GENERIC_DIR + '/web'],
       ['web/compressed.tracemonkey-pldi-09.pdf', GENERIC_DIR + '/web'],
       ['web/locale', GENERIC_DIR + '/web']
@@ -112,6 +112,8 @@ target.generic = function() {
     ]
   };
   builder.build(setup);
+
+  cleanupJSSource(GENERIC_DIR + '/web/viewer.js');
 };
 
 //
@@ -297,7 +299,15 @@ target.bundle = function(args) {
                           BUNDLE_BUILD: bundleBuild});
 };
 
+function cleanupJSSource(file) {
+  var content = cat(file);
 
+  // Strip out all the vim/license headers.
+  var reg = /\n\/\* -\*- Mode(.|\n)*?Mozilla Foundation(.|\n)*?'use strict';/g;
+  content = content.replace(reg, '');
+
+  content.to(file);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 //
@@ -400,9 +410,15 @@ target.firefox = function() {
       [COMMON_WEB_FILES_PREPROCESS, FIREFOX_BUILD_CONTENT_DIR + '/web'],
       [BUILD_TARGET, FIREFOX_BUILD_CONTENT_DIR + BUILD_TARGET],
       [SRC_DIR + 'network.js', FIREFOX_BUILD_CONTENT_DIR]
+    ],
+    preprocessCSS: [
+      ['firefox', 'web/viewer.css',
+       FIREFOX_BUILD_CONTENT_DIR + '/web/viewer.css']
     ]
   };
   builder.build(setup);
+
+  cleanupJSSource(FIREFOX_BUILD_CONTENT_DIR + '/web/viewer.js');
 
   // Remove '.DS_Store' and other hidden files
   find(FIREFOX_BUILD_DIR).forEach(function(file) {
@@ -508,9 +524,14 @@ target.mozcentral = function() {
       [COMMON_WEB_FILES_PREPROCESS, MOZCENTRAL_CONTENT_DIR + '/web'],
       [BUILD_TARGET, MOZCENTRAL_CONTENT_DIR + BUILD_TARGET],
       [SRC_DIR + 'network.js', MOZCENTRAL_CONTENT_DIR]
+    ],
+    preprocessCSS: [
+      ['firefox', 'web/viewer.css', MOZCENTRAL_CONTENT_DIR + '/web/viewer.css']
     ]
   };
   builder.build(setup);
+
+  cleanupJSSource(MOZCENTRAL_CONTENT_DIR + '/web/viewer.js');
 
   // Remove '.DS_Store' and other hidden files
   find(MOZCENTRAL_DIR).forEach(function(file) {
@@ -579,6 +600,8 @@ target.b2g = function() {
     ]
   };
   builder.build(setup);
+
+  cleanupJSSource(B2G_BUILD_CONTENT_DIR + '/web/viewer.js');
 };
 
 //
@@ -613,6 +636,7 @@ target.chrome = function() {
         'extensions/chrome/icon*.png',],
        CHROME_BUILD_DIR],
       ['external/webL10n/l10n.js', CHROME_BUILD_CONTENT_DIR + '/web'],
+      ['web/viewer.css', CHROME_BUILD_CONTENT_DIR + '/web'],
       ['web/locale', CHROME_BUILD_CONTENT_DIR + '/web']
     ],
     preprocess: [
@@ -621,6 +645,8 @@ target.chrome = function() {
     ]
   };
   builder.build(setup);
+
+  cleanupJSSource(CHROME_BUILD_CONTENT_DIR + '/web/viewer.js');
 
   // Update the build version number
   sed('-i', /PDFJSSCRIPT_VERSION/, EXTENSION_VERSION,
