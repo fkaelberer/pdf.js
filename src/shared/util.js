@@ -152,7 +152,7 @@ var OPS = PDFJS.OPS = {
   paintInlineImageXObjectGroup: 87,
   paintImageXObjectRepeat: 88,
   paintImageMaskXObjectRepeat: 89,
-  paintSolidColorImageMask: 90,
+  paintSolidColorImageMask: 90
 };
 
 // A notice for devs. These are good for things that are helpful to devs, such
@@ -393,21 +393,39 @@ var XRefParseException = (function XRefParseExceptionClosure() {
 
 
 function bytesToString(bytes) {
-  var strBuf = [];
   var length = bytes.length;
-  for (var n = 0; n < length; ++n) {
-    strBuf.push(String.fromCharCode(bytes[n]));
+  var MAX_ARGUMENT_COUNT = 65000;
+  if (length < MAX_ARGUMENT_COUNT) {
+    return String.fromCharCode.apply(null, bytes);
+  }
+  var strBuf = [];
+  for (var i = 0; i < length; ++i) {
+    strBuf.push(String.fromCharCode(bytes[i]));
   }
   return strBuf.join('');
+}
+
+function stringToArray(str) {
+  var length = str.length;
+  var array = [];
+  for (var i = 0; i < length; ++i) {
+    array[i] = str.charCodeAt(i);
+  }
+  return array;
 }
 
 function stringToBytes(str) {
   var length = str.length;
   var bytes = new Uint8Array(length);
-  for (var n = 0; n < length; ++n) {
-    bytes[n] = str.charCodeAt(n) & 0xFF;
+  for (var i = 0; i < length; ++i) {
+    bytes[i] = str.charCodeAt(i) & 0xFF;
   }
   return bytes;
+}
+
+function string32(value) {
+  return String.fromCharCode((value >> 24) & 0xff, (value >> 16) & 0xff,
+                             (value >> 8) & 0xff, value & 0xff);
 }
 
 var IDENTITY_MATRIX = [1, 0, 0, 1, 0, 0];

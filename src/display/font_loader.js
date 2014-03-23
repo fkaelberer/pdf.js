@@ -14,7 +14,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* globals PDFJS, shadow, isWorker, assert, warn, bytesToString, globalScope */
+/* globals PDFJS, shadow, isWorker, assert, warn, bytesToString, string32, 
+           globalScope */
 
 'use strict';
 
@@ -161,13 +162,6 @@ var FontLoader = {
                (data.charCodeAt(offset + 1) << 16) |
                (data.charCodeAt(offset + 2) << 8) |
                (data.charCodeAt(offset + 3) & 0xff);
-      }
-
-      function string32(value) {
-        return String.fromCharCode((value >> 24) & 0xff) +
-               String.fromCharCode((value >> 16) & 0xff) +
-               String.fromCharCode((value >> 8) & 0xff) +
-               String.fromCharCode(value & 0xff);
       }
 
       function spliceString(s, offset, remove, insert) {
