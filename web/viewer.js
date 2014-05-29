@@ -1709,6 +1709,31 @@ function webViewerInitialized() {
     PDFJS.disableRange = (hashParams['disableRange'] === 'true');
   }
 
+  if ('rangeChunkSize' in hashParams) {
+    var chunkSize = hashParams['rangeChunkSize'];
+    if (typeof chunkSize === 'number') {
+      PDFJS.rangeChunkSize = chunkSize;
+    } else if (typeof chunkSize === 'string') {
+      var endsWith = chunkSize.substr(-1);
+      var size = parseFloat(chunkSize.substr(0, chunkSize.length - 1), 10);
+      if (!isNaN(size) && size > 0) {
+        switch (endsWith) {
+          case 'k': case 'K':
+            PDFJS.rangeChunkSize = (size * 1024) | 0;
+            break;
+          case 'm': case 'M':
+            PDFJS.rangeChunkSize = (size * 1024 * 1024) | 0;
+            break;
+          case 'g': case 'G':
+            PDFJS.rangeChunkSize = (size * 1024 * 1024 * 1024) | 0;
+            break;
+          default:
+            // unknown string, do nothing
+        }
+      }
+    }
+  }
+
   if ('disableAutoFetch' in hashParams) {
     PDFJS.disableAutoFetch = (hashParams['disableAutoFetch'] === 'true');
   }

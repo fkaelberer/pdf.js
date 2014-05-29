@@ -18,7 +18,7 @@
            MissingPDFException, PasswordException, PDFJS, Promise,
            UnknownErrorException, NetworkManager, LocalPdfManager,
            NetworkPdfManager, XRefParseException, createPromiseCapability,
-           isInt, PasswordResponses, MessageHandler, Ref, RANGE_CHUNK_SIZE */
+           isInt, PasswordResponses, MessageHandler, Ref */
 
 'use strict';
 
@@ -109,7 +109,7 @@ var WorkerMessageHandler = PDFJS.WorkerMessageHandler = {
             return;
           }
           source.length = length;
-          if (length <= 2 * RANGE_CHUNK_SIZE) {
+          if (length <= 2 * PDFJS.rangeChunkSize) {
             // The file size is smaller than the size of two chunks, so it does
             // not make any sense to abort the request and retry with a range
             // request.
@@ -227,6 +227,7 @@ var WorkerMessageHandler = PDFJS.WorkerMessageHandler = {
                            -1 : data.maxImageSize;
       PDFJS.disableFontFace = data.disableFontFace;
       PDFJS.disableCreateObjectURL = data.disableCreateObjectURL;
+      PDFJS.rangeChunkSize = data.rangeChunkSize;
       PDFJS.verbosity = data.verbosity;
       PDFJS.cMapUrl = data.cMapUrl === undefined ?
                            null : data.cMapUrl;

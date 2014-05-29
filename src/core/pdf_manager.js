@@ -15,12 +15,9 @@
  * limitations under the License.
  */
 /* globals NotImplementedException, MissingDataException, Promise, Stream,
-           PDFDocument, ChunkedStreamManager, createPromiseCapability */
+           PDFDocument, PDFJS, ChunkedStreamManager, createPromiseCapability */
 
 'use strict';
-
-// The maximum number of bytes fetched per range request
-var RANGE_CHUNK_SIZE = 65536;
 
 // TODO(mack): Make use of PDFJS.Util.inherit() when it becomes available
 var BasePdfManager = (function BasePdfManagerClosure() {
@@ -149,11 +146,12 @@ var NetworkPdfManager = (function NetworkPdfManagerClosure() {
       disableAutoFetch: args.disableAutoFetch,
       initialData: args.initialData
     };
-    this.streamManager = new ChunkedStreamManager(args.length, RANGE_CHUNK_SIZE,
+    this.streamManager = new ChunkedStreamManager(args.length,
+                                                  PDFJS.rangeChunkSize,
                                                   args.url, params);
 
     this.pdfDocument = new PDFDocument(this, this.streamManager.getStream(),
-                                    args.password);
+                                       args.password);
   }
 
   NetworkPdfManager.prototype = Object.create(BasePdfManager.prototype);

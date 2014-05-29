@@ -87,6 +87,13 @@ PDFJS.disableRange = (PDFJS.disableRange === undefined ?
                       false : PDFJS.disableRange);
 
 /**
+ * The maximum number of bytes fetched per range request.
+ * @var {number}
+ */
+PDFJS.rangeChunkSize = PDFJS.rangeChunkSize === undefined ?
+                       65536 : PDFJS.rangeChunkSize;
+
+/**
  * Disable pre-fetching of PDF file data. When range requests are enabled PDF.js
  * will automatically keep fetching more data even if it isn't needed to display
  * the current page. This default behavior can be disabled.
@@ -972,6 +979,7 @@ var WorkerTransport = (function WorkerTransportClosure() {
       this.messageHandler.send('GetDocRequest', {
         source: source,
         disableRange: PDFJS.disableRange,
+        rangeChunkSize: PDFJS.rangeChunkSize,
         maxImageSize: PDFJS.maxImageSize,
         cMapUrl: PDFJS.cMapUrl,
         cMapPacked: PDFJS.cMapPacked,
