@@ -415,7 +415,7 @@ var CanvasExtraState = (function CanvasExtraStateClosure() {
     this.fillAlpha = 1;
     this.strokeAlpha = 1;
     this.lineWidth = 1;
-    this.activeSMask = null; // nonclonable field (see the save method below)
+    this.activeSMask = null; // noncloneable field (see the save method below)
 
     this.old = old;
   }
@@ -1882,6 +1882,57 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       this.restore();
     },
 
+    drawToCanvas: function CanvasGraphics_drawToCanvas(image, width, height) {
+      var ctx = this.ctx;
+      var imgW = image.width;
+      var imgH = image.height;
+      var targetW = ctx.canvas.width;
+      var targetH = ctx.canvas.height;
+      
+      // scale the image to the unit square
+      ctx.scale(1 / w, -1 / h);
+      
+      // drawImage does an awful job of rescaling images by a factor > 2, 
+      // so scale gradually in this case.
+      var needGradualScaling = imgW > 2 * targetW && imgH > 2 * targetH;
+      if (!needGradualScaling) {
+        ctx.drawImage(image, 0, 0, imgW, imgH, 0, -height, width, height);
+        return;
+      }
+      
+      var MAX_NUM_SCALING_STEPS = 3;
+      var tmpCanvasId = 'prescale1';
+      var tmpCanvas = this.cachedCanvases.getCanvas(tmpCanvasId, newW, newH);
+
+      // Find the largest power-of-2-multiple of the target canvas size that is 
+      // smaller than the original image...
+      var newW = targetW << MAX_NUM_SCALING_STEPS;
+      var newH = targetH << MAX_NUM_SCALING_STEPS;
+      while (newW > imgW || newH > imgH) {
+        newW >>= 1;
+        newH >>= 1;
+      }
+      // Scale to power-of-2-multiple of target canvas size
+      tmpCanvas.context.drawImage(image, 0, 0, imgW, imgH, 0, 0, newW, newH);
+      
+      // Scale down in steps of factor 2 
+      while (newW > 2 * targetW && newH > 2 * targetH) {
+        var tmpImage = tmpCanvas.canvas;
+        tmpCanvasId = (tmpCanvasId === 'prescale1') ? 'prescale2' : 'prescale1';
+        tmpCanvas = this.cachedCanvases.getCanvas(tmpCanvasId, newW, newH);
+        var tmpCtx = tmpCanvas.context;
+        tmpCtx.clearRect(0, 0, newW, newH);
+        tmpCtx.drawImage(tmpImage, 0, 0, newW, newH, 
+                                   0, 0, newW >> 1, newH >> 1);
+        
+        newW >>= 1;
+        newH >>= 1;
+      }
+      ctx.drawImage(tmpCanvas.canvas, 0, 0, newW, newH, 
+                                      0, -height, width, height);
+    },
+
+    
     paintJpegXObject: function CanvasGraphics_paintJpegXObject(objId, w, h) {
       var domImage = this.objs.get(objId);
       if (!domImage) {
@@ -1892,55 +1943,55 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       this.save();
 
       var ctx = this.ctx;
-      // scale the image to the unit square
-      ctx.scale(1 / w, -1 / h);
 
-      var canvas = ctx.canvas;
-      if (domImage.width > 2 * canvas.width && 
-          domImage.height > 2 * canvas.height) {
-  
-        // drawImage does an awful job of rescaling the image, 
-        // so doing it gradually.
-        var MAX_NUM_SCALING_STEPS = 3;
-        var newWidth = canvas.width << MAX_NUM_SCALING_STEPS;
-        var newHeight = canvas.height << MAX_NUM_SCALING_STEPS;
-        var tmpCanvasId = 'prescale1';
-        var tmpCanvas = this.cachedCanvases.getCanvas(tmpCanvasId, newWidth,
-            newHeight);
-  
-        // Scaling step 1: Find a size that is a power-of-2-multiple of the target
-        // canvas, but smaller than the image size ...
-        while (newWidth > domImage.width || newHeight > domImage.height) {
-          newWidth >>= 1;
-          newHeight >>= 1;
-        }
-        // ... and resize image to that size  
-        tmpCanvas.context.drawImage(domImage, 
-                                    0, 0, domImage.width, domImage.height,
-                                    0, 0, newWidth, newHeight);
-        
-        // Scaling step 2: Scale down in steps of factor 2 
-        while (newWidth > 2 * canvas.width && newHeight > 2 * canvas.height) {
-          
-          var imgToPaint = tmpCanvas.canvas;
-          tmpCanvasId = tmpCanvasId === 'prescale1' ? 'prescale2' : 'prescale1';
-          tmpCanvas = this.cachedCanvases.getCanvas(tmpCanvasId,
-                                                    newWidth, newHeight);
-          var tmpCtx = tmpCanvas.context;
-          tmpCtx.clearRect(0, 0, newWidth, newHeight);
-          tmpCtx.drawImage(imgToPaint, 0, 0, newWidth, newHeight,
-                                       0, 0, newWidth >> 1, newHeight >> 1);
-          
-          newWidth >>= 1;
-          newHeight >>= 1;
-        }
-        ctx.drawImage(tmpCanvas.canvas, 0, 0, newWidth, newHeight,
-                      0, -h, w, h);
-      } else { 
-        // domImage.width < 2 * canvas.width, no gradual scaling necessary.
-        ctx.drawImage(domImage, 0, 0, domImage.width, domImage.height,
-            0, -h, w, h);
-      }
+      this.drawToCanvas(domImage, w, h);
+//      
+//      var canvas = ctx.canvas;
+//      if (domImage.width > 2 * canvas.width && 
+//          domImage.height > 2 * canvas.height) {
+//  
+//        // drawImage does an awful job of rescaling the image, 
+//        // so doing it gradually.
+//        var MAX_NUM_SCALING_STEPS = 3;
+//        var newWidth = canvas.width << MAX_NUM_SCALING_STEPS;
+//        var newHeight = canvas.height << MAX_NUM_SCALING_STEPS;
+//        var tmpCanvasId = 'prescale1';
+//        var tmpCanvas = this.cachedCanvases.getCanvas(tmpCanvasId, newWidth,
+//            newHeight);
+//  
+//        // Scaling step 1: Find a size that is a power-of-2-multiple of the
+//        // target canvas, but smaller than the image size ...
+//        while (newWidth > domImage.width || newHeight > domImage.height) {
+//          newWidth >>= 1;
+//          newHeight >>= 1;
+//        }
+//        // ... and resize image to that size  
+//        tmpCanvas.context.drawImage(domImage, 
+//                                    0, 0, domImage.width, domImage.height,
+//                                    0, 0, newWidth, newHeight);
+//        
+//        // Scaling step 2: Scale down in steps of factor 2 
+//        while (newWidth > 2 * canvas.width && newHeight > 2 * canvas.height) {
+//          
+//          var imgToPaint = tmpCanvas.canvas;
+//          tmpCanvasId = tmpCanvasId === 'prescale1' ? 'prescale2' : 'prescale1';
+//          tmpCanvas = this.cachedCanvases.getCanvas(tmpCanvasId,
+//                                                    newWidth, newHeight);
+//          var tmpCtx = tmpCanvas.context;
+//          tmpCtx.clearRect(0, 0, newWidth, newHeight);
+//          tmpCtx.drawImage(imgToPaint, 0, 0, newWidth, newHeight,
+//                                       0, 0, newWidth >> 1, newHeight >> 1);
+//          
+//          newWidth >>= 1;
+//          newHeight >>= 1;
+//        }
+//        ctx.drawImage(tmpCanvas.canvas, 0, 0, newWidth, newHeight,
+//                      0, -h, w, h);
+//      } else { 
+//        // domImage.width < 2 * canvas.width, no gradual scaling necessary.
+//        ctx.drawImage(domImage, 0, 0, domImage.width, domImage.height,
+//            0, -h, w, h);
+//      }
       
       if (this.imageLayer) {
         var currentTransform = ctx.mozCurrentTransformInverse;
