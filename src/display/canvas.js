@@ -245,7 +245,7 @@ function compileType3Glyph(imgData) {
     }
   }
 
-  // finding iteresting points: every point is located between mask pixels,
+  // finding interesting points: every point is located between mask pixels,
   // so there will be points of the (width + 1)x(height + 1) grid. Every point
   // will have flags assigned based on neighboring mask pixels:
   //   4 | 8
@@ -364,22 +364,22 @@ function compileType3Glyph(imgData) {
     --i;
   }
 
-  var drawOutline = function(c) {
-    c.save();
+  var drawOutline = function(ctx) {
+    ctx.save();
     // the path shall be painted in [0..1]x[0..1] space
-    c.scale(1 / width, -1 / height);
-    c.translate(0, -height);
-    c.beginPath();
+    ctx.scale(1 / width, -1 / height);
+    ctx.translate(0, -height);
+    ctx.beginPath();
     for (var i = 0, ii = outlines.length; i < ii; i++) {
       var o = outlines[i];
-      c.moveTo(o[0], o[1]);
+      ctx.moveTo(o[0], o[1]);
       for (var j = 2, jj = o.length; j < jj; j += 2) {
-        c.lineTo(o[j], o[j+1]);
+        ctx.lineTo(o[j], o[j+1]);
       }
     }
-    c.fill();
-    c.beginPath();
-    c.restore();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.restore();
   };
 
   return drawOutline;
@@ -434,7 +434,7 @@ var CanvasExtraState = (function CanvasExtraStateClosure() {
 
 var CanvasGraphics = (function CanvasGraphicsClosure() {
   // Defines the time the executeOperatorList is going to be executing
-  // before it stops and shedules a continue of execution.
+  // before it stops and schedules a continue of execution.
   var EXECUTION_TIME = 15;
   // Defines the number of steps before checking the execution time
   var EXECUTION_STEPS = 10;
@@ -1728,7 +1728,7 @@ var CanvasGraphics = (function CanvasGraphicsClosure() {
       var currentCtx = this.ctx;
       // TODO non-isolated groups - according to Rik at adobe non-isolated
       // group results aren't usually that different and they even have tools
-      // that ignore this setting. Notes from Rik on implmenting:
+      // that ignore this setting. Notes from Rik on implementing:
       // - When you encounter an transparency group, create a new canvas with
       // the dimensions of the bbox
       // - copy the content from the previous canvas to the new canvas
