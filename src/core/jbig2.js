@@ -1,5 +1,3 @@
-/* -*- Mode: Java; tab-width: 2; indent-tabs-mode: nil; c-basic-offset: 2 -*- */
-/* vim: set shiftwidth=2 tabstop=2 autoindent cindent expandtab: */
 /* Copyright 2012 Mozilla Foundation
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,10 +12,29 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-/* globals ArithmeticDecoder, error, log2, readInt8, readUint16, readUint32,
-           shadow */
 
 'use strict';
+
+(function (root, factory) {
+  if (typeof define === 'function' && define.amd) {
+    define('pdfjs/core/jbig2', ['exports', 'pdfjs/shared/util',
+      'pdfjs/core/arithmetic_decoder'], factory);
+  } else if (typeof exports !== 'undefined') {
+    factory(exports, require('../shared/util.js'),
+      require('./arithmetic_decoder.js'));
+  } else {
+    factory((root.pdfjsCoreJbig2 = {}), root.pdfjsSharedUtil,
+      root.pdfjsCoreArithmeticDecoder);
+  }
+}(this, function (exports, sharedUtil, coreArithmeticDecoder) {
+
+var error = sharedUtil.error;
+var log2 = sharedUtil.log2;
+var readInt8 = sharedUtil.readInt8;
+var readUint16 = sharedUtil.readUint16;
+var readUint32 = sharedUtil.readUint32;
+var shadow = sharedUtil.shadow;
+var ArithmeticDecoder = coreArithmeticDecoder.ArithmeticDecoder;
 
 var Jbig2Image = (function Jbig2ImageClosure() {
   // Utility data structures
@@ -179,10 +196,9 @@ var Jbig2Image = (function Jbig2ImageClosure() {
 
         // At each pixel: Clear contextLabel pixels that are shifted
         // out of the context, then add new ones.
-        // If j + n is out of range at the right image border, then
-        // the undefined value of bitmap[i - 2][j + n] is shifted to 0
         contextLabel = ((contextLabel & OLD_PIXEL_MASK) << 1) |
-                       (row2[j + 3] << 11) | (row1[j + 4] << 4) | pixel;
+                       (j + 3 < width ? row2[j + 3] << 11 : 0) |
+                       (j + 4 < width ? row1[j + 4] << 4 : 0) | pixel;
       }
     }
 
@@ -873,7 +889,7 @@ var Jbig2Image = (function Jbig2ImageClosure() {
           delete pageInfo.height;
         }
         var pageSegmentFlags = data[position + 16];
-        var pageStripingInformatiom = readUint16(data, position + 17);
+        var pageStripingInformation = readUint16(data, position + 17);
         pageInfo.lossless = !!(pageSegmentFlags & 1);
         pageInfo.refinement = !!(pageSegmentFlags & 2);
         pageInfo.defaultPixelValue = (pageSegmentFlags >> 2) & 1;
@@ -1087,3 +1103,6 @@ var Jbig2Image = (function Jbig2ImageClosure() {
 
   return Jbig2Image;
 })();
+
+exports.Jbig2Image = Jbig2Image;
+}));
